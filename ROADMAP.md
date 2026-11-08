@@ -35,6 +35,12 @@ See [CLAUDE.md](CLAUDE.md) for the project entry points and handoff.
 
 ## Why the latest changes were made
 
+- **Rule views and assignment editing.** The library filters by controlled
+  devices. The native device view also includes rules it triggers and has
+  a separate database-copy toggle. Managed rules expose target selection
+  directly in the editor. Compatible fixed native rules can be copied into
+  paused desktop schedules. Native reassignment remains locked pending
+  multi-device write verification.
 - **Automation keyboard controls.** F6 opens the managed Rules Library,
   F7 opens the device picker, F8 saves the schedule, and F9 opens schedule
   management. The picker supports arrows, Space, and Return. Schedule

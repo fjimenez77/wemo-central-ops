@@ -29,9 +29,14 @@ Quentin Russell and its contributors, based on upstream commit `58f4915`.
    discovery or to scan a manually entered subnet.
 3. Open **Automation → Rules Library** to browse rules by device or source.
    For a new managed schedule, choose **New Wemo Central Ops schedule**,
-   then **Choose devices**. Check the devices you want and save.
+   then select the Wemos under **Devices controlled** and save. Edit that
+   selection later from the rule's card.
 4. To configure a native auto-off timer, open **Stored on device**, select
    your Wemo, read its rules, then choose **Configure auto-off**.
+   The device view shows rules that control or are triggered by the selected
+   Wemo. Turn on **Show database copies** to inspect every rule it reported.
+   Compatible native fixed schedules can be copied into paused desktop
+   schedules. Native device reassignment remains locked.
 
 Desktop schedules run while the app is open. To run schedules after closing
 the app, install and start the bundled background service and choose it as

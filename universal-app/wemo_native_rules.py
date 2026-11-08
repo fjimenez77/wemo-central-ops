@@ -141,8 +141,15 @@ def read_device_rules(device):
                                                  [rule.RuleID] * len(references))
                     related[table] = sorted(json.dumps(dict(row), sort_keys=True) for row in rows_for_rule)
             signature = hashlib.sha256(json.dumps([metadata, rows, targets, related]).encode()).hexdigest()
+            by_device = {}
+            for entry in entries:
+                by_device.setdefault(entry.DeviceID, []).append(entry)
+            copyable = (rule.Type == INTERVAL and (rule.StartDate, rule.EndDate) == ("12201982", "07301982")
+                        and bool(by_device) and all(
+                target and editable_fields(db, rule, device_entries, target)
+                for target, device_entries in by_device.items()))
             rules.append({
-                "id": rule.RuleID, "signature": signature, "name": rule.Name, "kind": rule.Type, "state": rule.State,
+                "id": rule.RuleID, "signature": signature, "copyable": copyable, "name": rule.Name, "kind": rule.Type, "state": rule.State,
                 "targets": targets,
                 "entries": [(entry.DeviceID, entry.DayID, entry.StartTime, entry.EndTime,
                              entry.CountdownTime, entry.StartAction, entry.EndAction) for entry in entries],

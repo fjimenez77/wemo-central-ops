@@ -44,6 +44,29 @@ def controlled_devices(rule):
     return set(rule["targets"]) or {entry[0] for entry in rule["entries"] if entry[0]}
 
 
+def triggering_devices(rule):
+    if rule["kind"] == "Long Press":
+        return {entry[0] for entry in rule["entries"] if entry[0]}
+    return set()
+
+
+def paused_schedule_copies(rule, names):
+    if not rule.get("copyable"):
+        return []
+    grouped = {}
+    for target, day, start, end, *_ in rule["entries"]:
+        weekday = (day - 2) % 7
+        grouped.setdefault(("Turn ON", start, target), set()).add(weekday)
+        grouped.setdefault(("Turn OFF", end, target), set()).add((weekday + (end < start)) % 7)
+    schedules = {}
+    for (action, time, target), days in grouped.items():
+        schedules.setdefault((action, time, tuple(sorted(days))), []).append(
+            {"device": names.get(target, target), "device_id": target})
+    return [{"action": action, "type": "Time (Fixed)", "value": clock_text(time),
+             "days": list(days), "targets": targets, "enabled": False}
+            for (action, time, days), targets in schedules.items()]
+
+
 def describe_native_rule(rule, names):
     timings = {}
     for target, day, start, end, delay, on, off in rule["entries"]:

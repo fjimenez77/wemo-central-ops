@@ -23,7 +23,10 @@ from pathlib import Path
 from wemo_native_rules import (
     COUNTDOWN, DAYS, INTERVAL, clock_text, read_device_rules, validate_rule, write_device_rule,
 )
-from wemo_rule_library import controlled_devices, describe_native_rule, group_native_rules, save_library
+from wemo_rule_library import (
+    controlled_devices, describe_native_rule, group_native_rules, paused_schedule_copies,
+    save_library, triggering_devices,
+)
 from wemo_schedules import (
     ACTIONS, TRIGGERS, ScheduleStore, find_device, next_run, same_schedule, schedule_fields, schedule_targets,
 )
@@ -1288,6 +1291,14 @@ class WemoOpsApp(ctk.CTk):
         self.schedule_target_label.pack(side="left", padx=5)
         self.sched_action_combo = ctk.CTkComboBox(r1, values=["Turn ON", "Turn OFF", "Toggle"], width=100); self.sched_action_combo.pack(side="left", padx=5)
         self.sched_type_combo = ctk.CTkComboBox(r1, values=["Time (Fixed)", "Sunrise", "Sunset"], width=130, command=self.on_sched_type_change); self.sched_type_combo.pack(side="left", padx=5)
+        target_panel = ctk.CTkFrame(creator_frame, fg_color="transparent")
+        target_panel.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(target_panel, text="Devices controlled · click or press Space to select").pack(anchor="w")
+        self.schedule_target_list = Listbox(target_panel, selectmode="multiple", exportselection=False,
+                                            activestyle="dotbox", height=4)
+        self.schedule_target_list.pack(fill="x")
+        self.schedule_target_list.bind("<<ListboxSelect>>", self.update_inline_schedule_selection)
+        self.schedule_target_list.bind("<space>", self.toggle_inline_schedule_device)
         r2 = ctk.CTkFrame(creator_frame, fg_color="transparent"); r2.pack(fill="x", padx=10, pady=5)
         self.sched_val_lbl = ctk.CTkLabel(r2, text="Time (HH:MM):", text_color=COLOR_TEXT); self.sched_val_lbl.pack(side="left", padx=5)
         self.sched_val_entry = ctk.CTkEntry(r2, width=80, placeholder_text="18:00"); self.sched_val_entry.pack(side="left", padx=5)
@@ -1319,7 +1330,7 @@ class WemoOpsApp(ctk.CTk):
         ctk.CTkButton(controls, text="Restore", width=70, command=self.import_schedules).pack(side="right", padx=5)
         self.job_list_frame = ctk.CTkScrollableFrame(schedules)
         self.job_list_frame.pack(fill="both", expand=True)
-        ctk.CTkLabel(stored, text="Saved to the selected Wemo. The device runs these rules.",
+        ctk.CTkLabel(stored, text="Rules that control or are triggered by the selected Wemo.",
                      anchor="w").pack(fill="x", padx=5)
         native_controls = ctk.CTkFrame(stored, fg_color="transparent")
         native_controls.pack(fill="x", pady=5)
@@ -1328,6 +1339,9 @@ class WemoOpsApp(ctk.CTk):
         self.stored_device.pack(side="left", padx=4)
         self.native_read = ctk.CTkButton(native_controls, text="Read device rules", command=self.read_device_rules)
         self.native_read.pack(side="left", padx=4)
+        self.show_database_copies = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(native_controls, text="Show database copies", variable=self.show_database_copies,
+                        command=self.refresh_device_rule_view).pack(side="left", padx=8)
         self.native_choices = ctk.CTkComboBox(stored, values=[], width=400, state="readonly",
                                              command=lambda _: self.update_native_buttons())
         self.native_choices.pack(fill="x", pady=4)
@@ -1362,7 +1376,7 @@ class WemoOpsApp(ctk.CTk):
         ctk.CTkButton(controls, text="Refresh rules", width=95, command=self.refresh_rule_inventory).pack(side="left", padx=4)
         create = ctk.CTkFrame(parent, fg_color="transparent")
         create.pack(fill="x")
-        ctk.CTkButton(create, text="New Wemo Central Ops schedule", command=lambda: self.rules_tabs.set("Wemo Central Ops schedules")).pack(side="left", padx=4)
+        ctk.CTkButton(create, text="New Wemo Central Ops schedule", command=self.new_managed_schedule).pack(side="left", padx=4)
         ctk.CTkButton(create, text="New device rule", command=self.open_device_rule_source).pack(side="left", padx=4)
         self.library_status = ctk.CTkLabel(parent, text="", anchor="w")
         self.library_status.pack(fill="x", padx=5)
@@ -1459,7 +1473,7 @@ class WemoOpsApp(ctk.CTk):
         visible = 0
         if source_filter != "Managed by Wemo Central Ops":
             for group in group_native_rules(self.rule_inventory):
-                devices = controlled_devices(group["rule"]) | set(group["copies"])
+                devices = controlled_devices(group["rule"])
                 if selected == "All devices" or selected in {names.get(udn, udn) for udn in devices}:
                     self.render_native_card(self.library_cards, group, names)
                     visible += 1
@@ -1487,15 +1501,14 @@ class WemoOpsApp(ctk.CTk):
 
     def render_native_card(self, parent, group, names, allow_edit=True):
         rule = group["rule"]
-        copies = group["copies"]
         status = {"1": "Enabled", "0": "Disabled"}.get(rule["state"], "Device-defined state")
         kind = {INTERVAL: "Fixed schedule", COUNTDOWN: "Auto-off countdown"}.get(rule["kind"], rule["kind"])
         card = self.rule_card(parent, rule["name"], f"Stored on device · {kind} · {status}")
         controls = sorted(names.get(udn, udn) for udn in controlled_devices(rule))
         self.rule_card_line(card, "Controls: " + (", ".join(controls) or "Unknown"))
-        found = sorted(names.get(udn, udn) + (" (offline)" if udn not in self.live_devices else "")
-                       for udn in copies)
-        self.rule_card_line(card, "Found on: " + ", ".join(found))
+        triggers = sorted(names.get(udn, udn) for udn in triggering_devices(rule))
+        if triggers:
+            self.rule_card_line(card, "Triggered by: " + ", ".join(triggers))
         timings = describe_native_rule(rule, names)
         for timing in timings[:2]:
             self.rule_card_line(card, timing)
@@ -1506,9 +1519,29 @@ class WemoOpsApp(ctk.CTk):
         ctk.CTkButton(buttons, text="Details", width=70,
                       command=lambda: self.show_native_details(group, names)).pack(side="left")
         source = self.native_edit_source(group)
-        if allow_edit:
-            ctk.CTkButton(buttons, text="Edit", width=70, state="normal" if source else "disabled",
+        if allow_edit and source:
+            ctk.CTkButton(buttons, text="Edit timing", width=90,
                           command=lambda: self.edit_library_native(group)).pack(side="left", padx=6)
+        if allow_edit and not group["conflict"] and rule.get("copyable"):
+            ctk.CTkButton(buttons, text="Copy to Wemo Central Ops", command=lambda: self.copy_native_schedule(rule)
+                          ).pack(side="left", padx=6)
+        self.rule_card_line(card, "Device assignments are locked for native rules.")
+
+    def copy_native_schedule(self, rule):
+        schedules = paused_schedule_copies(rule, self.rule_device_names())
+        if not schedules or not messagebox.askyesno(
+                "Copy as paused schedules",
+                f"Create {len(schedules)} paused desktop schedules from {rule['name']}? The native rule stays active if enabled."):
+            return
+        try:
+            added = self.schedule_store.add(schedules, skip_duplicates=True)
+            self.schedules = self.schedule_store.read()
+            self.library_source.set("Managed by Wemo Central Ops")
+            self.render_jobs()
+            if len(added) != len(schedules):
+                messagebox.showinfo("Copy complete", f"Added {len(added)} paused schedules. Matching schedules were already present.")
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Could not copy rule", str(error))
 
     def native_edit_source(self, group):
         if group["conflict"]:
@@ -1546,7 +1579,7 @@ class WemoOpsApp(ctk.CTk):
         details.pack(fill="both", expand=True, padx=10, pady=10)
         for line in describe_native_rule(group["rule"], names):
             self.rule_card_line(details, line)
-        self.rule_card_line(details, "Device copies and last successful reads")
+        self.rule_card_line(details, "Found on · last successful reads")
         for udn in group["copies"]:
             checked = self.rule_inventory.get(udn, {}).get("checked", "Unknown")
             state = "Offline" if udn not in self.live_devices else (
@@ -1565,9 +1598,22 @@ class WemoOpsApp(ctk.CTk):
             f"{job['value']} min {'before' if job.get('offset_dir') == -1 else 'after'} {job['type'].lower()}")
         self.rule_card_line(card, f"Controls: {name} · {weekday} · {trigger}")
         self.rule_card_line(card, f"Last run: {job.get('last_result') or job.get('last_run') or 'No recorded run'}")
-        ctk.CTkButton(card, text="Edit", width=70,
-                      state="normal" if runner == "Desktop app" or self.schedule_server_status is not None else "disabled",
-                      command=lambda: self.edit_job(runner, job)).pack(anchor="w", padx=10, pady=6)
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.pack(anchor="w", padx=10, pady=6)
+        enabled = job.get("enabled", True)
+        state = "normal" if runner == "Desktop app" or self.schedule_server_status is not None else "disabled"
+
+        def delete():
+            if messagebox.askyesno("Delete schedule", f"Delete the {job['action']} schedule for {name}?"):
+                self.mutate_schedule(runner, "DELETE", job["id"])
+
+        for label, command in (
+            ("Edit", lambda: self.edit_job(runner, job)),
+            ("Pause" if enabled else "Resume", lambda: self.mutate_schedule(
+                runner, "PATCH", job["id"], {"enabled": not enabled})),
+            ("Delete", delete),
+        ):
+            ctk.CTkButton(actions, text=label, width=70, state=state, command=command).pack(side="left", padx=(0, 6))
 
     def on_sched_type_change(self, choice):
         if choice == "Time (Fixed)": self.sched_val_lbl.configure(text="Time (HH:MM):"); self.sched_val_entry.configure(placeholder_text="18:00"); self.sched_offset_combo.pack_forget()
@@ -1584,10 +1630,64 @@ class WemoOpsApp(ctk.CTk):
         threading.Thread(target=task, daemon=True).start()
 
     def update_schedule_dropdown(self):
+        self.refresh_inline_schedule_devices()
         self.render_jobs()
+
+    def new_managed_schedule(self):
+        self.cancel_job_edit()
+        self.sched_action_combo.set("Turn ON")
+        self.sched_type_combo.set(TRIGGERS[0])
+        self.on_sched_type_change(TRIGGERS[0])
+        self.sched_val_entry.delete(0, "end")
+        for variable in self.day_vars:
+            variable.set(True)
+        device = self.known_devices_map.get(self.library_device.get())
+        targets = [{"device": device.name, "device_id": device.udn}] if device else []
+        self.set_schedule_targets(targets)
+        self.rules_tabs.set("Wemo Central Ops schedules")
+
+    def schedule_device_options(self):
+        selected = {target["device_id"] or target["device"]: target for target in self.selected_schedule_targets}
+        options = dict(selected)
+        for device in self.live_devices.values():
+            options[device.udn] = {"device": device.name, "device_id": device.udn}
+            if device.name in selected and not selected[device.name]["device_id"]:
+                selected[device.udn] = selected.pop(device.name)
+                options.pop(device.name, None)
+        return sorted(options.items(), key=lambda item: item[1]["device"].casefold()), selected
+
+    def refresh_inline_schedule_devices(self):
+        self.inline_schedule_options, selected = self.schedule_device_options()
+        listing = self.schedule_target_list
+        listing.delete(0, "end")
+        for index, (key, target) in enumerate(self.inline_schedule_options):
+            listing.insert("end", target["device"] + (" (offline)" if key not in self.live_devices else ""))
+            if key in selected:
+                listing.selection_set(index)
+        self.update_inline_schedule_selection()
+
+    def update_inline_schedule_selection(self, _=None):
+        self.selected_schedule_targets = [
+            self.inline_schedule_options[index][1] for index in self.schedule_target_list.curselection()]
+        self.update_schedule_target_label()
+
+    def toggle_inline_schedule_device(self, _):
+        listing = self.schedule_target_list
+        if listing.size():
+            index = listing.index("active")
+            if listing.selection_includes(index):
+                listing.selection_clear(index)
+            else:
+                listing.selection_set(index)
+            self.update_inline_schedule_selection()
+        return "break"
 
     def set_schedule_targets(self, targets):
         self.selected_schedule_targets = targets
+        self.refresh_inline_schedule_devices()
+
+    def update_schedule_target_label(self):
+        targets = self.selected_schedule_targets
         count = len(targets)
         text = targets[0]["device"] if count == 1 else f"{count} devices selected" if count else "No devices selected"
         self.schedule_target_label.configure(text=text)
@@ -1599,14 +1699,7 @@ class WemoOpsApp(ctk.CTk):
         dialog.transient(self)
         dialog.grab_set()
         ctk.CTkLabel(dialog, text="Use ↑/↓ to move, Space to select, and Return to apply.", wraplength=390).pack(pady=10)
-        selected = {target["device_id"] or target["device"]: target for target in self.selected_schedule_targets}
-        options = dict(selected)
-        for device in self.live_devices.values():
-            options[device.udn] = {"device": device.name, "device_id": device.udn}
-            if device.name in selected and not selected[device.name]["device_id"]:
-                selected[device.udn] = selected.pop(device.name)
-                options.pop(device.name)
-        targets = sorted(options.items(), key=lambda item: item[1]["device"].casefold())
+        targets, selected = self.schedule_device_options()
         listing = self.schedule_keyboard_list(dialog, [
             target["device"] + (" (offline)" if key not in self.live_devices else "")
             for key, target in targets
@@ -1733,17 +1826,25 @@ class WemoOpsApp(ctk.CTk):
             return
         self.display_device_rules(name, udn, result, write)
 
+    def refresh_device_rule_view(self):
+        if self.native_snapshot is not None:
+            udn, token, rules = self.native_snapshot
+            self.display_device_rules(self.stored_device.get(), udn, (token, rules))
+
     def display_device_rules(self, name, udn, result, write=False):
         token, rules = result
         self.native_snapshot = (udn, tuple(token), rules)
-        self.set_stored_rules(f"Rules stored on {name}" + (" · Update verified" if write else ""))
+        copies = self.show_database_copies.get()
+        heading = f"Database copies reported by {name}" if copies else f"Rules that apply to {name}"
+        self.set_stored_rules(heading + (" · Update verified" if write else ""))
         names = self.rule_device_names()
-        for rule in rules:
+        visible = [rule for rule in rules if copies or udn in controlled_devices(rule) | triggering_devices(rule)]
+        for rule in visible:
             self.render_native_card(self.stored_rules, {"rule": rule, "copies": {udn: rule}, "conflict": False},
                                     names, allow_edit=False)
-        if not rules:
-            self.stored_status.configure(text=f"No rules stored on {name}.")
-        options = [self.native_rule_label(rule) for rule in rules]
+        if not visible:
+            self.stored_status.configure(text=f"No {'database copies' if copies else 'applicable rules'} for {name}.")
+        options = [self.native_rule_label(rule) for rule in visible]
         self.native_choices.configure(values=options)
         self.native_choices.set(options[0] if options else "")
         self.update_native_buttons()
@@ -1857,6 +1958,7 @@ class WemoOpsApp(ctk.CTk):
         self.on_sched_type_change(job["type"])
         self.sched_val_entry.delete(0, "end")
         self.sched_val_entry.insert(0, str(job["value"]))
+        self.schedule_target_list.focus_set()
         self.sched_offset_combo.set("- (Before)" if job.get("offset_dir") == -1 else "+ (After)")
         for index, variable in enumerate(self.day_vars):
             variable.set(index in job["days"])
