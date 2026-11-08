@@ -3,7 +3,7 @@ Welcome to Wemo Ops. We offer three ways to manage your smart home, depending on
 
 ![Wemo Ops Center Dashboard](assets/wemo-ops.png)
 
-![Version](https://img.shields.io/badge/version-v5.2.3-blue)
+![Version](https://img.shields.io/badge/version-v5.3.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 [![MCP](https://img.shields.io/badge/MCP-Server-blue)](https://modelcontextprotocol.io)
 [![AI Integration](https://img.shields.io/badge/AI-Integration-purple)](https://modelcontextprotocol.io)
@@ -27,7 +27,7 @@ Wemo Ops Center is a completely local, offline provisioning and automation suite
 | **OS Support** | Linux (Fedora/Ubuntu), Windows | Linux Server, Raspberry Pi, Docker | Python 3.10+ (Any OS) |
 | **Repository** | This repo | This repo | [apiarya/wemo-mcp-server](https://github.com/apiarya/wemo-mcp-server) |
 | **Installation** | Download from Releases | `dnf/apt install` or Docker | `pip install wemo-mcp-server` |
-| **Version** | v5.2.3 | v5.2.3 | v1.1.0 (Latest) |
+| **Version** | v5.3.1 | v5.3.1 | v1.1.0 (Latest) |
 | **Key Benefit** | **Zero Setup.** Just launch and click. | **Set & Forget.** Automation never stops. | **Universal Protocol.** Works with any MCP host. |
 
 > **Note:** The MCP Server has been moved to its own dedicated repository at [apiarya/wemo-mcp-server](https://github.com/apiarya/wemo-mcp-server) for better discoverability and to follow MCP ecosystem best practices.
@@ -49,6 +49,25 @@ When you launch `WemoOps.exe` for the first time, you may see a blue warning fro
 **To run the app:**
 1. Click **More info**.
 2. Click **Run anyway**.
+
+## ⚠️ macOS: "cannot be opened" Warning
+The macOS build is code-signed but **not notarized** — notarization needs a paid
+Apple Developer ID. On first launch macOS will say the developer cannot be
+verified.
+
+**To run the app, pick any one:**
+1. Right-click `WemoOps.app` in Applications → **Open** → **Open** again; or
+2. **System Settings → Privacy & Security → Open Anyway**; or
+3. Run `Install_WemoOps.command` from the DMG, which copies the app and clears
+   the quarantine flag for you.
+
+Download the DMG matching your Mac: `_arm64` for Apple Silicon (M1 and later),
+`_x86_64` for Intel.
+
+> If you instead see **"WemoOps is damaged and can't be opened"**, you have a
+> build older than v5.3.1. That message means the bundle signature was invalid,
+> not that the download failed. Upgrade.
+
 The complete control plane for Belkin Wemo devices.
 
 # Screenshots of the Wemo Ops Center Desktop App
@@ -106,7 +125,7 @@ The complete control plane for Belkin Wemo devices.
 
 ---
 **Go to the [Releases Page](../../releases) and download.**
-## 🚀 Key Features (v5.2.3)
+## 🚀 Key Features (v5.3.1)
 
 ### 1. 📡 Universal Provisioner
 * **No Cloud Required:** Connect directly to a new or reset Wemo device's Wi-Fi (`Wemo.Mini.xxx`) and push your Wi-Fi credentials instantly.

@@ -132,39 +132,66 @@ def get_solar_times():
 
 # --- DEEP SCANNER ---
 class DeepScanner:
-    def probe_port(self, ip, ports=[49152, 49153, 49154, 49155], timeout=0.6):
-        for port in ports:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(timeout)
-            try: s.connect((str(ip), port)); s.close(); return str(ip)
-            except: pass
-            finally: s.close()
+    """Brute-force TCP sweep used when SSDP/multicast discovery misses devices."""
+
+    WEMO_PORTS = (49153, 49152, 49154, 49155)
+    PROBE_TIMEOUT = 0.35
+    PROBE_WORKERS = 128
+    VERIFY_TIMEOUT = 1.5
+    VERIFY_WORKERS = 32
+
+    def _probe(self, target):
+        ip, port = target
+        try:
+            with socket.create_connection((ip, port), timeout=self.PROBE_TIMEOUT):
+                return target
+        except OSError:
+            return None
+
+    def probe_port(self, ip, ports=None, timeout=None):
+        for port in (ports or self.WEMO_PORTS):
+            if self._probe((str(ip), port)):
+                return str(ip)
         return None
 
-    def scan_subnet(self, subnets):
+    def identify(self, target):
         import pywemo
-        found_ips = []; all_hosts = []
+        ip, port = target
+        url = "http://{}:{}/setup.xml".format(ip, port)
+        try:
+            r = requests.get(url, timeout=self.VERIFY_TIMEOUT)
+            if r.status_code != 200 or "Belkin" not in r.text:
+                return None
+            return pywemo.discovery.device_from_description(url)
+        except Exception:
+            return None
+
+    def scan_subnet(self, subnets):
+        all_hosts = []
         for subnet in subnets:
             try:
-                if "/" not in subnet: subnet += "/24"
+                if "/" not in subnet:
+                    subnet += "/24"
                 net = ipaddress.ip_network(subnet.strip(), strict=False)
                 all_hosts.extend([str(ip) for ip in net.hosts()])
-            except: pass
-        if not all_hosts: return []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
-            futures = {executor.submit(self.probe_port, ip): ip for ip in all_hosts}
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result: found_ips.append(result)
-        devices = []
-        for ip in found_ips:
-            for port in [49152, 49153, 49154, 49155]:
-                try:
-                    url = f"http://{ip}:{port}/setup.xml"
-                    try:
-                        dev = pywemo.discovery.device_from_description(url)
-                        if dev: devices.append(dev); break
-                    except: pass
-                except: pass
+            except ValueError:
+                pass
+        if not all_hosts:
+            return []
+
+        targets = [(ip, port) for ip in all_hosts for port in self.WEMO_PORTS]
+        open_targets = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.PROBE_WORKERS) as ex:
+            for res in ex.map(self._probe, targets):
+                if res:
+                    open_targets.append(res)
+
+        devices, seen = [], set()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.VERIFY_WORKERS) as ex:
+            for dev in ex.map(self.identify, open_targets):
+                if dev is not None and dev.host not in seen:
+                    seen.add(dev.host)
+                    devices.append(dev)
         return devices
 
 # --- BACKGROUND TASKS ---

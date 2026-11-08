@@ -215,46 +215,77 @@ class NetworkUtils:
         except: return False
 
 class DeepScanner:
-    def probe_port(self, ip, ports=[49152, 49153, 49154, 49155], timeout=0.6):
-        for port in ports:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(timeout)
-            try: 
-                s.connect((str(ip), port))
-                s.close()
+    """Brute-force TCP sweep used when SSDP/multicast discovery misses devices."""
+
+    # A Wemo serves setup.xml on one of these; 49153 is by far the most common.
+    WEMO_PORTS = (49153, 49152, 49154, 49155)
+    PROBE_TIMEOUT = 0.35    # seconds per host:port TCP connect
+    PROBE_WORKERS = 128     # host:port pairs probed concurrently
+    VERIFY_TIMEOUT = 1.5    # seconds per setup.xml fetch
+    VERIFY_WORKERS = 32
+
+    def _probe(self, target):
+        """target is (ip, port). Returns target if the port accepts a connection."""
+        ip, port = target
+        try:
+            with socket.create_connection((ip, port), timeout=self.PROBE_TIMEOUT):
+                return target
+        except OSError:
+            return None
+
+    def probe_port(self, ip, ports=None, timeout=None):
+        """Back-compat helper: first open Wemo port on `ip`, or None."""
+        for port in (ports or self.WEMO_PORTS):
+            if self._probe((str(ip), port)):
                 return str(ip)
-            except: pass
-            finally: s.close()
         return None
 
-    def scan_subnet(self, target_cidr, status_callback=None):
-        found_devices = []
+    def identify(self, target):
+        """Fetch setup.xml with a hard timeout; return a pywemo device or None.
+
+        Ports 49152-49155 are the generic UPnP ephemeral range, so most open
+        ports belong to routers, printers and NAS boxes rather than Wemos. The
+        cheap Belkin check keeps us out of pywemo's default (long) timeout.
+        """
+        ip, port = target
+        url = "http://{}:{}/setup.xml".format(ip, port)
         try:
-            network = ipaddress.ip_network(target_cidr, strict=False)
-            all_hosts = list(network.hosts())
-        except: return []
+            r = requests.get(url, timeout=self.VERIFY_TIMEOUT)
+            if r.status_code != 200 or "Belkin" not in r.text:
+                return None
+            return pywemo.discovery.device_from_description(url)
+        except Exception:
+            return None
 
-        if status_callback: status_callback(f"Probing {len(all_hosts)} IPs (Deep)...")
-        
-        active_ips = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
-            futures = {executor.submit(self.probe_port, ip): ip for ip in all_hosts}
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result: active_ips.append(result)
+    def scan_subnet(self, target_cidr, status_callback=None):
+        try:
+            hosts = list(ipaddress.ip_network(target_cidr, strict=False).hosts())
+        except ValueError:
+            return []
 
-        if status_callback: status_callback(f"Verifying {len(active_ips)} hosts...")
-        
-        for ip in active_ips:
-            for port in [49152, 49153, 49154, 49155]:
-                try:
-                    url = f"http://{ip}:{port}/setup.xml"
-                    dev = pywemo.discovery.device_from_description(url)
-                    if dev: 
-                        found_devices.append(dev)
-                        break 
-                except: pass
-        return found_devices
+        # Probe each host:port pair as its own task. Probing the four ports in
+        # parallel rather than in series means a dead host costs one timeout
+        # instead of four.
+        targets = [(str(ip), port) for ip in hosts for port in self.WEMO_PORTS]
+        if status_callback:
+            status_callback("Probing {} IPs...".format(len(hosts)))
+
+        open_targets = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.PROBE_WORKERS) as ex:
+            for res in ex.map(self._probe, targets):
+                if res:
+                    open_targets.append(res)
+
+        if status_callback:
+            status_callback("Verifying {} hosts...".format(len(open_targets)))
+
+        found, seen = [], set()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.VERIFY_WORKERS) as ex:
+            for dev in ex.map(self.identify, open_targets):
+                if dev is not None and dev.host not in seen:
+                    seen.add(dev.host)
+                    found.append(dev)
+        return found
 
 # ==============================================================================
 #  WIFI AUTOMATOR
@@ -336,6 +367,9 @@ class WemoOpsApp(ctk.CTk):
         self.last_rendered_device_names = [] 
         self.solar = SolarEngine()
         self.scanner = DeepScanner()
+        # Deep sweep stays on by default so discovery does not regress, but it
+        # is now cheap enough (~4s on a /24) that it no longer blocks the UI.
+        self.use_deep_scan = True
         self.current_setup_ip = None
         self.current_setup_port = None
         self.manual_override_active = False
@@ -482,12 +516,20 @@ class WemoOpsApp(ctk.CTk):
         
         ctk.CTkButton(r1, text="Save", width=50, fg_color=COLOR_ACCENT, command=self.save_subnet).pack(side="left", padx=2)
         ctk.CTkButton(r1, text="Del", width=50, fg_color=COLOR_DANGER, command=self.delete_subnet).pack(side="left", padx=(2, 10))
+        self.deep_chk = ctk.CTkCheckBox(r1, text="Deep", width=58, checkbox_width=18, checkbox_height=18,
+                                       font=("Arial", 11), text_color=COLOR_TEXT,
+                                       command=self._toggle_deep_scan)
+        self.deep_chk.select()
+        self.deep_chk.pack(side="left", padx=(2, 6))
         ctk.CTkButton(r1, text="Scan", width=80, command=self.run_local_scan, fg_color=COLOR_ACCENT).pack(side="left", padx=5)
         
         self.scan_status = ctk.CTkLabel(ctrl, text="Ready", text_color="orange", font=("Arial", 11))
         self.scan_status.pack(side="top", anchor="e", padx=10, pady=(2, 0))
         
         self.dev_list = ctk.CTkScrollableFrame(f, label_text="Devices", label_text_color=COLOR_TEXT); self.dev_list.pack(fill="both", expand=True)
+
+    def _toggle_deep_scan(self):
+        self.use_deep_scan = bool(self.deep_chk.get())
 
     def save_subnet(self):
         s = self.subnet_combo.get().strip()
@@ -510,29 +552,63 @@ class WemoOpsApp(ctk.CTk):
 
     def run_local_scan(self):
         subnet = self.subnet_combo.get().strip()
-        self.scan_status.configure(text="Scanning...")
-        threading.Thread(target=self._scan_task, args=(subnet,), daemon=True).start()
+        deep = bool(self.use_deep_scan)
+        # Prefer the background service when it is up: it keeps a warm device
+        # list, so the dashboard fills immediately instead of re-sweeping.
+        if self.api.connected:
+            self.scan_status.configure(text="Fetching from Server...")
+            threading.Thread(target=self._server_sync_task, daemon=True).start()
+        else:
+            self.scan_status.configure(text="Scanning...")
+            threading.Thread(target=self._scan_task, args=(subnet, deep), daemon=True).start()
 
-    def _scan_task(self, subnet):
+    def _server_sync_task(self):
+        def log(m): self.after(0, lambda: self.scan_status.configure(text=m))
+        try:
+            ips = [d.get("ip") for d in (self.api.get_devices() or []) if d.get("ip")]
+            targets = [(ip, port) for ip in ips for port in DeepScanner.WEMO_PORTS]
+            new_map = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+                for dev in ex.map(self.scanner.identify, targets):
+                    if dev is not None:
+                        new_map[dev.name] = dev
+            if not new_map:
+                raise RuntimeError("server returned no reachable devices")
+            self.known_devices_map = new_map
+            log("Synced with Server ({} found)".format(len(new_map)))
+            self.after(0, self.render_devices)
+            self.after(0, self.update_maint_dropdown)
+            self.after(0, self.update_schedule_dropdown)
+        except Exception:
+            log("Server sync failed, scanning locally...")
+            threading.Thread(
+                target=self._scan_task,
+                args=(self.subnet_combo.get().strip(), bool(self.use_deep_scan)),
+                daemon=True).start()
+
+    def _scan_task(self, subnet, use_deep=True):
         def log(m): self.after(0, lambda: self.scan_status.configure(text=m))
         try:
             log("SSDP Scan...")
             new_map = {}
-            for d in pywemo.discover_devices(): 
+            for d in pywemo.discover_devices():
                 new_map[d.name] = d
-            
-            if subnet:
-                log(f"Scanning {subnet}...")
-                deep_devs = self.scanner.scan_subnet(subnet)
-                for d in deep_devs:
+
+            # The deep scan is a full TCP sweep of the subnet. Run it when the
+            # user asks, or automatically when SSDP came up empty -- some Wemos
+            # stop answering multicast until they are power-cycled.
+            if subnet and (use_deep or not new_map):
+                log("Deep scan {}...".format(subnet))
+                for d in self.scanner.scan_subnet(subnet, status_callback=log):
                     new_map[d.name] = d
-            
+
             self.known_devices_map = new_map
-            log("Scan Complete") 
+            log("Scan Complete ({} found)".format(len(new_map)))
             self.after(0, self.render_devices)
             self.after(0, self.update_maint_dropdown)
             self.after(0, self.update_schedule_dropdown)
-        except Exception as e: log(f"Error: {e}")
+        except Exception as e:
+            log("Error: {}".format(e))
 
     def refresh_network(self):
         self.run_local_scan()
