@@ -18,4 +18,5 @@ mac/build/
 mac/dist/
 windows/build/
 windows/dist/
-windows/wemo_ops.spec洮灣敲楧瑳祲⩟洊灣瀭扵楬桳牥
+windows/wemo_ops.spec
+**/.venv_mac/

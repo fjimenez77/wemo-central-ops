@@ -11,10 +11,11 @@ import concurrent.futures
 import requests
 from flask import Flask, render_template, jsonify, request
 from waitress import serve
+from wemo_schedules import ScheduleStore
 from pywemo.ouimeaux_device.dimmer import Dimmer
 
 # --- CONFIGURATION ---
-VERSION = "v5.3.0-Server"
+VERSION = "v5.3.1-Server"
 PORT = int(os.environ.get("PORT", 5050)) 
 HOST = "0.0.0.0"
 SCAN_INTERVAL = int(os.environ.get("SCAN_INTERVAL", 300))
@@ -33,6 +34,7 @@ if not os.path.exists(APP_DATA_DIR):
     except: pass
 
 SCHEDULE_FILE = os.path.join(APP_DATA_DIR, "schedules.json")
+schedule_store = ScheduleStore(SCHEDULE_FILE)
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
 DEVICES_FILE = os.path.join(APP_DATA_DIR, "devices.json")
 
@@ -114,7 +116,11 @@ def get_solar_times():
     global solar_times
     if solar_times and solar_times.get('date') == datetime.date.today().isoformat():
         return solar_times
-    lat = settings.get('lat'); lng = settings.get('lng')
+    solar_settings = settings
+    if sys.platform == "darwin":
+        desktop_settings = os.path.expanduser("~/Library/Application Support/WemoOps/settings.json")
+        solar_settings = {**settings, **load_json(desktop_settings, {})}
+    lat = solar_settings.get('lat'); lng = solar_settings.get('lng')
     if not lat: return None
     try:
         url = f"https://api.sunrise-sunset.org/json?lat={lat}&lng={lng}&formatted=0"
@@ -268,36 +274,13 @@ def poller_loop():
 def scheduler_loop():
     while True:
         try:
-            now = datetime.datetime.now(); today_str = now.strftime("%Y-%m-%d"); weekday = now.weekday(); current_hhmm = now.strftime("%H:%M")
-            solar = get_solar_times()
-            current_schedules = load_json(SCHEDULE_FILE, []); schedule_modified = False
-            for job in current_schedules:
-                job_days = job.get('days', [])
-                if not job_days or weekday not in job_days: continue
-                trigger_time = ""
-                if job['type'] == "Time (Fixed)": trigger_time = job['value']
-                elif solar:
-                    base = solar['sunrise'] if job['type'] == "Sunrise" else solar['sunset']
-                    try:
-                        dt = datetime.datetime.strptime(f"{today_str} {base}", "%Y-%m-%d %H:%M")
-                        trigger_time = (dt + datetime.timedelta(minutes=int(job['value']) * int(job.get('offset_dir', 1)))).strftime("%H:%M")
-                    except: continue
-                if trigger_time == current_hhmm and job.get('last_run') != today_str:
-                    entry = device_registry.get(job['device'])
-                    if entry and entry.get("obj"):
-                        dev = entry["obj"]
-                        try:
-                            action = job['action']
-                            if action == "Turn ON": dev.on()
-                            elif action == "Turn OFF": dev.off()
-                            elif action == "Toggle": dev.toggle()
-                            entry['state'] = dev.get_state(force_update=True)
-                            logger.info(f"Executed Schedule: {job['device']} -> {action}")
-                        except Exception as e: logger.error(f"Failed to execute schedule for {job['device']}: {e}")
-                    job['last_run'] = today_str; schedule_modified = True
-            if schedule_modified: save_json(SCHEDULE_FILE, current_schedules)
-        except Exception as e: logger.error(f"Scheduler error: {e}")
-        time.sleep(30)
+            devices = {name: entry["obj"] for name, entry in device_registry.copy().items() if entry.get("obj")}
+            jobs = schedule_store.read()
+            solar = get_solar_times() if any(job.get("enabled", True) and job.get("type") in ("Sunrise", "Sunset") for job in jobs) else None
+            schedule_store.run_due(devices, solar)
+        except Exception:
+            logger.exception("Scheduler error")
+        time.sleep(10)
 
 # --- ROUTES ---
 @app.route('/')
@@ -366,32 +349,45 @@ def api_scan():
     threading.Thread(target=run_scan_cycle, daemon=True).start()
     return jsonify({"status": "started"})
 
-@app.route('/api/schedules', methods=['GET', 'POST', 'DELETE'])
+@app.route('/api/schedules', methods=['GET', 'POST', 'PATCH', 'DELETE'])
 def api_schedules():
-    current = load_json(SCHEDULE_FILE, [])
-    if request.method == 'GET': return jsonify(current)
-    if request.method == 'POST':
-        data = request.json
-        new_job = {
-            "id": int(time.time()),
-            "device": data.get('device'),
-            "type": data.get('type'),
-            "action": data.get('action'),
-            "value": data.get('value'),
-            "offset_dir": data.get('offset_dir', 1),
-            "days": data.get('days', [0,1,2,3,4,5,6]),
-            "last_run": ""
-        }
-        current.append(new_job); save_json(SCHEDULE_FILE, current)
-        return jsonify({"status": "added", "id": new_job['id']})
-    if request.method == 'DELETE':
-        jid = int(request.args.get('id')); current = [x for x in current if x['id'] != jid]; save_json(SCHEDULE_FILE, current)
+    try:
+        if request.method == 'GET':
+            return jsonify(schedule_store.read())
+        if request.method == 'POST':
+            job, = schedule_store.add([request.get_json()])
+            return jsonify({"status": "added", "id": job["id"]})
+        job_id = request.args.get("id")
+        if request.method == 'PATCH':
+            schedule_store.change(job_id, request.get_json())
+            return jsonify({"status": "updated"})
+        schedule_store.change(job_id)
         return jsonify({"status": "deleted"})
+    except StopIteration:
+        return jsonify({"error": "Schedule not found"}), 404
+    except (ValueError, TypeError, AttributeError) as error:
+        return jsonify({"error": str(error)}), 400
+
+@app.route('/api/schedules/restore', methods=['POST'])
+def api_restore_schedules():
+    try:
+        entries = request.get_json()
+        if not isinstance(entries, list) or not all(isinstance(job, dict) for job in entries):
+            raise ValueError("Expected a list of schedules.")
+        restored = schedule_store.add([dict(job, enabled=False) for job in entries], skip_duplicates=True)
+        return jsonify({"restored": len(restored)})
+    except (ValueError, TypeError) as error:
+        return jsonify({"error": str(error)}), 400
+
+@app.route('/api/schedule-status')
+def api_schedule_status():
+    return jsonify({"solar": solar_times, "time": datetime.datetime.now().isoformat(),
+                    "multi_device_schedules": True})
 
 if __name__ == "__main__":
     settings = load_json(SETTINGS_FILE, {})
     threading.Thread(target=scanner_loop, daemon=True).start()
     threading.Thread(target=poller_loop, daemon=True).start()
     threading.Thread(target=scheduler_loop, daemon=True).start()
-    print(f"   WEMO OPS SERVER - LISTENING ON PORT {PORT}")
+    print(f"   WEMO CENTRAL OPS SERVER - LISTENING ON PORT {PORT}")
     serve(app, host=HOST, port=PORT, threads=6)

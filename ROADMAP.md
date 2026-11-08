@@ -1,11 +1,18 @@
-# Wemo Ops Center — macOS Fix Roadmap
+# Wemo Central Ops — macOS Fix Roadmap
 
-Working doc for our fork. Branch: `fix/mac-scan-and-signing`.
+Working doc for our fork. Branch `codex/wemo-central-ops`. Last updated November 8, 2026.
 Upstream: [qrussell/wemo-ops-center](https://github.com/qrussell/wemo-ops-center) @ `58f4915`
 
 > Local tracking file. Exclude from any upstream PR.
 
 ---
+
+## Current checkout
+
+Commit `624306a` contains the scan performance and macOS packaging changes.
+The local fork branch includes VPN-aware discovery, the desktop device
+cache, the Rules Library, and Wemo Central Ops branding.
+See [CLAUDE.md](CLAUDE.md) for the project entry points and handoff.
 
 ## Status
 
@@ -14,14 +21,90 @@ Upstream: [qrussell/wemo-ops-center](https://github.com/qrussell/wemo-ops-center
 | Scan regression (#21, #25) | Patched, benchmarked |
 | macOS signing / "damaged app" (#21) | Patched, launch verified |
 | UTF-16 source files | Fixed |
-| App launch smoke test | Passed (30s, no `_tkinter` error) |
+| Initial arm64 branch build | Valid signature and DMG checksum. Process started; dashboard inspection timed out. |
+| Wi-Fi and Ethernet subnet detection | Verified on this Mac with an active IPsec interface and with simulated /27 and /20 masks. |
+| Desktop device cache | Tested with simulated devices, including identity verification, rename and IP changes, and offline retention. |
+| Automation | Implemented in the working tree. Live hardware verification remains open. |
+| Automation smoke tests | Passed on macOS with simulated devices. Covered execution, pause, duplicate prevention, missing-device results, service API, and desktop UI flows. |
+| Latest arm64 package | `universal-app/dist/WemoCentralOps_5.3.1_arm64.dmg` (79 MB). Bundle and service signatures, executable architecture, and DMG checksum verified. |
 | README version drift | Fixed, macOS Gatekeeper section added |
 | SSDP 10s-per-stale-host stall | Found, not fixed (see below) |
 | Delivery decision (PR vs own fork) | Open |
 
 ---
 
-## Done
+## Why the latest changes were made
+
+- **Automation keyboard controls.** F6 opens the managed Rules Library,
+  F7 opens the device picker, F8 saves the schedule, and F9 opens schedule
+  management. The picker supports arrows, Space, and Return. Schedule
+  management supports arrows, Return to edit, and Delete with confirmation.
+- **Multi-device Wemo Ops schedules.** Choose multiple Wemos in the managed
+  schedule editor. The library displays all targets under Controls on one
+  card. Each runner attempts every target and reports partial failures.
+  Existing single-device schedules and version 1 backups still load.
+  Multi-device schedules on the background runner require the updated service.
+- **Graphical Rules Library.** Automation opens with an inventory of rules
+  from the Wemos and Wemo Ops. The desktop reads reachable devices after
+  discovery and refreshes them every five minutes. The last successful
+  results persist in `rule-library.json`, including rules from offline
+  devices. Matching copies share one card. The card separates controlled
+  devices from the devices that reported the rule. Copies with different
+  contents are shown separately. Supported edits use the existing source
+  editors and device writes still check for a changed database.
+- **Desktop device cache.** The dashboard loads last-known devices from
+  `desktop-devices.json` at startup. Cached cards show their last state and
+  last-seen time. Background verification checks the device's UDN and
+  reads live power state before offering controls. Scan merges discoveries
+  by UDN and keeps missing devices visible as offline. The dashboard sorts
+  devices on the detected subnet first. The cache is separate from the
+  service's device registry and contains no Wi-Fi credentials.
+- **Subnet detection.** The Mac app used the route to `8.8.8.8` and assumed
+  a /24. It now reads the IPv4 addresses and masks of active `enN`
+  interfaces, skips tunnel interfaces, and uses macOS's primary interface
+  when it is among the physical candidates. If several remain without a
+  usable primary, it chooses the lowest-numbered interface. Scan refreshes
+  the automatic value and preserves manual input. On macOS an explicit
+  subnet scan runs locally even when the service is up. SSDP still runs when
+  the subnet is larger than /16, while the full TCP sweep is skipped.
+- **Rules and execution.** The previous Automation list showed a target,
+  days, trigger type, and action. The local scheduler reported a mode without
+  executing jobs. The desktop now runs its own schedule store while open,
+  and the background service runs its separate store. Automation shows the
+  runner, exact trigger, next run, and last recorded result. Solar times for
+  later days are estimates based on today's data.
+- **Device assignments.** The dashboard Rules button opens Automation
+  filtered to the selected device. Edit and pause controls work for desktop
+  and updated service schedules. New assignments store the Wemo UDN so a
+  rename does not break the target. Existing name-based schedules keep
+  working. The Stored on device tab reads the selected Wemo's rules database
+  through pywemo and shows the entries and target IDs or known names. Some
+  firmware fields are shown as raw codes.
+- **Native rule editing.** Create, edit, and delete fixed on/off intervals
+  and auto-off countdowns that target the selected device alone. The app
+  backs up the original archive in its `native-rule-backups` directory,
+  checks the firmware version and archive before uploading, and verifies
+  the updated database by reading it back. Shared and other rule types
+  remain viewable. Live reads succeeded on five Wemos. On Night Outside
+  Lights, a disabled 5-minute countdown was created, edited to 7 minutes,
+  and deleted. The five original rules and their database records matched
+  afterward. The device database version advanced from 4 to 7. Enabled
+  countdown execution still needs hardware verification.
+- **Rule ownership and auto-off.** The Wemo Ops tab contains the managed
+  scheduler and runner selection. The device tab has its own creation and
+  editing controls. Configure auto-off opens the device's existing
+  supported countdown or starts a new one with the delay, days, and
+  enabled state available to configure.
+- **Backup and restore.** JSON export includes the desktop and loaded
+  service schedules. Restore adds schedules paused to the selected runner
+  and skips duplicates. Assign unmatched devices with Edit before resuming.
+- **Persistence.** `universal-app/wemo_schedules.py` handles validation,
+  atomic writes, job claims, and results. The Mac desktop store remains
+  under `~/Library/Application Support/WemoOps`. The service continues to
+  use its own existing data directory. On macOS it also reads the desktop's
+  saved solar coordinates.
+
+## Earlier changes
 
 - **Scan regression.** `_scan_task` lost its deep-scan gate and the server
   fast path in 5.3.0, so every refresh ran a full TCP sweep. Restored the
@@ -68,8 +151,11 @@ cd universal-app
 ./build_mac.sh --python /path/to/python3
 ```
 
-Output: `universal-app/dist/WemoOps_<version>_<arch>.dmg`
-Verified here: `WemoOps_5.3.1_arm64.dmg`, 79 MB, signature valid, launches.
+Output: `universal-app/dist/WemoCentralOps_<version>_<arch>.dmg`
+Use `--python /opt/homebrew/bin/python3.14` on this Mac. The packager
+recreates its build, dist, and build environment directories, so use a
+scratch copy to preserve earlier DMGs. The default build is ad-hoc signed.
+Apple notarization is a separate step.
 
 Upstream shipped two confusingly named DMGs per release
 (`_tahoe` and `_universal`) and **neither was universal2** — no script passed
@@ -90,15 +176,22 @@ contains.
   (`mcp/tests/` had `test_e2e.py` + `test_server.py` upstream).
 
 ### 2. Finish macOS verification
-- Launch the built `.app` and confirm the dashboard populates.
+- Launch the packaged app from the latest DMG and confirm discovery,
+  execution, and device-rule reading against live Wemo hardware.
+- Test a service-owned rule with the desktop closed. Confirm the installed
+  service is the updated binary, then check the last result in Automation.
+- Test native rule layouts across multiple Wemo models and firmware versions.
 - Confirm the `Deep` checkbox toggles behaviour.
 - Confirm Gatekeeper now says "unidentified developer" (recoverable) rather
   than "damaged" (dead end).
 
-### 3. Decide delivery
-- PR upstream, or maintain our own fork. Deferred until the fix is proven.
-- Upstream has no `LICENSE` at root despite the MIT badge — worth resolving
-  before contributing.
+### 3. Prepare publication
+- Publish Wemo Central Ops in a separate repository when the release
+  requirements in [LICENSING.md](LICENSING.md) are satisfied.
+- Ask the upstream maintainer to confirm MIT scope for the desktop app,
+  service, and assets, and provide the copyright notice before publishing a
+  modified DMG. The root README has an MIT badge and the only license file
+  found was in `mcp/`.
 
 ### 4. SSDP phase still pays pywemo's 10s timeout
 Found while smoke-testing the built app. `pywemo.discover_devices()` is the

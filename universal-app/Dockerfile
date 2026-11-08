@@ -33,7 +33,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
-COPY wemo_server.py .
+COPY wemo_server.py wemo_schedules.py .
 COPY templates templates
 COPY static static
 COPY entrypoint.sh /entrypoint.sh

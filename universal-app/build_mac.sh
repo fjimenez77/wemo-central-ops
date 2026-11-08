@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-#  WEMO OPS - macOS PACKAGER
+#  WEMO CENTRAL OPS - macOS PACKAGER
 #
 #  Replaces the previous build_mac.sh / build_mac_app.sh / build_mac_tahoe.sh
 #  trio. Differences that matter:
@@ -16,11 +16,14 @@
 
 set -euo pipefail
 
-APP_NAME="WemoOps"
+APP_NAME="Wemo Central Ops"
+ARTIFACT_NAME="WemoCentralOps"
 VERSION="5.3.1"
 CLIENT_SCRIPT="wemo_ops_universal.py"
 SERVER_SCRIPT="wemo_server.py"
-BUNDLE_ID="com.qrussell.wemoops"
+BUNDLE_ID="org.wemocentralops.app"
+# Keep the prior service label so upgrades replace the existing login agent.
+SERVICE_LABEL="com.qrussell.wemoops"
 
 ARCH_MODE="native"
 SIGN_ID="-"          # "-" means ad-hoc. Pass --sign to use a real Developer ID.
@@ -47,7 +50,7 @@ case "$ARCH_MODE" in
 esac
 
 echo "========================================="
-echo "   WEMO OPS - macOS PACKAGER (.DMG)"
+echo "   WEMO CENTRAL OPS - macOS PACKAGER (.DMG)"
 echo "   Version:  $VERSION"
 echo "   Host:     macOS $(sw_vers -productVersion) / $HOST_ARCH"
 echo "   Building: $TARGET_ARCH"
@@ -63,7 +66,7 @@ done
 # Pick an interpreter that is both modern enough and has Tk. Do NOT just take
 # `python3`: on macOS that is usually Apple's 3.9.6, and `brew install
 # python@3.x` does not create a `python3` symlink at all. A Tk-less Python is
-# the top cause of a WemoOps.app that dies on launch with
+# the top cause of a Wemo Central Ops.app that dies on launch with
 # "ModuleNotFoundError: No module named '_tkinter'"  (issue #21).
 tk_ok() { "$1" -c 'import sys,tkinter; sys.exit(0 if sys.version_info[:2] >= (3,11) else 1)' >/dev/null 2>&1; }
 
@@ -151,10 +154,8 @@ PYI_ARCH=()
 if [[ "$TARGET_ARCH" == "universal2" ]]; then PYI_ARCH=(--target-arch universal2); fi
 
 ICON_FLAG=() ; ADD_DATA=()
-if [[ -f images/WemoOpsCenter.icns ]]; then
-  ICON_FLAG=(--icon images/WemoOpsCenter.icns)
-  ADD_DATA=(--add-data "images/WemoOpsCenter.icns:.")
-fi
+ICON_FLAG=(--icon images/WemoCentralOps.icns)
+ADD_DATA=(--add-data "images/WemoCentralOps.png:images")
 
 echo "   > service binary..."
 pyinstaller --noconfirm --noconsole --onefile --clean \
@@ -242,7 +243,7 @@ fi
 if [[ "$SIGN_ID" == "-" ]]; then
   echo "   > NOTE: ad-hoc signed and NOT notarized."
   echo "     First launch shows 'unidentified developer'; right-click > Open,"
-  echo "     or run Install_WemoOps.command to clear the quarantine flag."
+  echo "     or run Install_WemoCentralOps.command to clear the quarantine flag."
 fi
 
 # ------------------------------------------------------------------- 5. DMG
@@ -254,9 +255,10 @@ mkdir -p "$STAGING/Service_Binary"
 cp -R "dist/$APP_NAME.app" "$STAGING/"
 cp dist/wemo_service "$STAGING/Service_Binary/"
 ln -s /Applications "$STAGING/Applications"
+cp ../LICENSE ../NOTICE ../LICENSING.md "$STAGING/"
 
 cat > "$STAGING/READ_ME_FIRST.txt" <<TXT
-Wemo Ops Center $VERSION ($TARGET_ARCH)
+Wemo Central Ops $VERSION ($TARGET_ARCH)
 
 INSTALL
   Drag $APP_NAME.app onto the Applications shortcut in this window.
@@ -267,16 +269,16 @@ IF macOS SAYS THE APP CANNOT BE OPENED
     - right-click $APP_NAME.app in Applications and choose Open, then Open
       again at the prompt; or
     - open System Settings > Privacy & Security and click "Open Anyway"; or
-    - run Install_WemoOps.command in this window, which copies the app and
+    - run Install_WemoCentralOps.command in this window, which copies the app and
       clears the download quarantine flag for you.
 
 OPTIONAL: 24/7 BACKGROUND SERVICE
-  Install_WemoOps.command also registers wemo_service as a login agent on
+  Install_WemoCentralOps.command also registers wemo_service as a login agent on
   port 5050. With it running the desktop app loads devices from the service
   instead of sweeping the network, which is much faster.
 TXT
 
-cat > "$STAGING/Install_WemoOps.command" <<EOF
+cat > "$STAGING/Install_WemoCentralOps.command" <<EOF
 #!/bin/bash
 set -e
 DIR="\$( cd "\$( dirname "\${BASH_SOURCE[0]}" )" && pwd )"
@@ -294,14 +296,14 @@ sudo chown -R "\$(id -u):\$(id -g)" "/Applications/\$APP_NAME.app"
 xattr -dr com.apple.quarantine "/Applications/\$APP_NAME.app" 2>/dev/null || true
 
 echo "[2/3] Installing background service..."
-DATA_DIR="\$HOME/Library/Application Support/\$APP_NAME"
+DATA_DIR="\$HOME/Library/Application Support/WemoOps"
 mkdir -p "\$DATA_DIR"
 cp "\$DIR/Service_Binary/wemo_service" "\$DATA_DIR/"
 chmod +x "\$DATA_DIR/wemo_service"
 xattr -dr com.apple.quarantine "\$DATA_DIR/wemo_service" 2>/dev/null || true
 
 echo "[3/3] Registering login agent..."
-PLIST="\$HOME/Library/LaunchAgents/$BUNDLE_ID.plist"
+PLIST="\$HOME/Library/LaunchAgents/$SERVICE_LABEL.plist"
 mkdir -p "\$HOME/Library/LaunchAgents"
 cat > "\$PLIST" <<PLIST_CONTENT
 <?xml version="1.0" encoding="UTF-8"?>
@@ -309,7 +311,7 @@ cat > "\$PLIST" <<PLIST_CONTENT
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>$BUNDLE_ID</string>
+    <string>$SERVICE_LABEL</string>
     <key>ProgramArguments</key>
     <array>
         <string>\$DATA_DIR/wemo_service</string>
@@ -332,9 +334,9 @@ launchctl load "\$PLIST"
 echo ""
 echo "Done. Service on port 5050; launch \$APP_NAME from Applications."
 EOF
-chmod +x "$STAGING/Install_WemoOps.command"
+chmod +x "$STAGING/Install_WemoCentralOps.command"
 
-DMG="dist/${APP_NAME}_${VERSION}_${TARGET_ARCH}.dmg"
+DMG="dist/${ARTIFACT_NAME}_${VERSION}_${TARGET_ARCH}.dmg"
 rm -f "$DMG"
 hdiutil create -volname "$APP_NAME $VERSION" -srcfolder "$STAGING" \
                -ov -format UDZO "$DMG" >/dev/null
