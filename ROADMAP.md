@@ -9,7 +9,7 @@ Upstream: [qrussell/wemo-ops-center](https://github.com/qrussell/wemo-ops-center
 
 ## Current checkout
 
-Commit `624306a` contains the scan performance and macOS packaging changes.
+Commit `238a1f2` contains the scan performance and macOS packaging changes.
 The local fork branch includes VPN-aware discovery, the desktop device
 cache, the Rules Library, and Wemo Central Ops branding.
 See [CLAUDE.md](CLAUDE.md) for the project entry points and handoff.

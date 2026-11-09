@@ -4,7 +4,7 @@ This checkout is a macOS-focused working branch of `qrussell/wemo-ops-center`.
 Use [ROADMAP.md](ROADMAP.md) for the dated project status, rationale, verification,
 and open issues. Check `git status --short` and `git log -5 --oneline` at the
 start of a session. The local handoff branch is `codex/wemo-central-ops`,
-based on the original macOS fix commit `624306a`.
+based on the original macOS fix commit `238a1f2`.
 
 The private fork is `fjimenez77/wemo-central-ops`, configured as
 `central-ops`. Push to that remote when authorized. The `origin` remote
