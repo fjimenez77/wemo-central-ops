@@ -15,7 +15,7 @@ from wemo_schedules import ScheduleStore
 from pywemo.ouimeaux_device.dimmer import Dimmer
 
 # --- CONFIGURATION ---
-VERSION = "v5.3.1-Server"
+VERSION = "v5.3.2-Server"
 PORT = int(os.environ.get("PORT", 5050)) 
 HOST = "0.0.0.0"
 SCAN_INTERVAL = int(os.environ.get("SCAN_INTERVAL", 300))

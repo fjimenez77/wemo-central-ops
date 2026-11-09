@@ -18,7 +18,6 @@ set -euo pipefail
 
 APP_NAME="Wemo Central Ops"
 ARTIFACT_NAME="WemoCentralOps"
-VERSION="5.3.1"
 CLIENT_SCRIPT="wemo_ops_universal.py"
 SERVER_SCRIPT="wemo_server.py"
 BUNDLE_ID="org.wemocentralops.app"
@@ -41,6 +40,9 @@ done
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
+
+VERSION=$(sed -n 's/^VERSION = "v\([0-9][0-9.]*\)"$/\1/p' "$CLIENT_SCRIPT")
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid application version" >&2; exit 1; }
 
 HOST_ARCH="$(uname -m)"
 case "$ARCH_MODE" in
@@ -190,6 +192,18 @@ pyinstaller --noconfirm --windowed --clean \
   --hidden-import PIL._tkinter_finder \
   --hidden-import PIL.ImageTk \
   "$CLIENT_SCRIPT" >/dev/null
+
+python - "dist/$APP_NAME.app/Contents/Info.plist" "$VERSION" <<'PYTHON'
+import plistlib
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+metadata = plistlib.loads(path.read_bytes())
+metadata["CFBundleShortVersionString"] = sys.argv[2]
+metadata["CFBundleVersion"] = sys.argv[2]
+path.write_bytes(plistlib.dumps(metadata))
+PYTHON
 
 deactivate || true
 trap - EXIT

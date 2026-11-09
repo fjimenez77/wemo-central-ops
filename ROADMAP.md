@@ -26,7 +26,7 @@ See [CLAUDE.md](CLAUDE.md) for the project entry points and handoff.
 | Desktop device cache | Tested with simulated devices, including identity verification, rename and IP changes, and offline retention. |
 | Automation | Implemented in the working tree. Live hardware verification remains open. |
 | Automation smoke tests | Passed on macOS with simulated devices. Covered execution, pause, duplicate prevention, missing-device results, service API, and desktop UI flows. |
-| Latest arm64 package | `universal-app/dist/WemoCentralOps_5.3.1_arm64.dmg` (79 MB). Bundle and service signatures, executable architecture, and DMG checksum verified. |
+| Latest arm64 package | `universal-app/dist/WemoCentralOps_5.3.2_arm64.dmg`. |
 | README version drift | Fixed, macOS Gatekeeper section added |
 | README structure | Rebuilt to the house layout; logo resized 1254px -> 256px |
 | Screenshots | 7 captured from the live app, MAC/SN and solar latitude redacted |

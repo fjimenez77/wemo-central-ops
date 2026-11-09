@@ -60,7 +60,7 @@ Build in a scratch copy if keeping existing artifacts. Use
 `codesign --verify --deep --strict` on the .app, `lipo -archs` on its main
 executable, and `hdiutil verify` on the DMG. Local artifacts go under
 `universal-app/dist/`. The current local artifact is
-`WemoCentralOps_5.3.1_arm64.dmg`. It uses ad-hoc signing. The app bundle
+`WemoCentralOps_5.3.2_arm64.dmg`. It uses ad-hoc signing. The app bundle
 uses a distinct ID and retains the old app data directory and service label.
 Automation UI and scheduler smoke tests passed using simulated devices.
 

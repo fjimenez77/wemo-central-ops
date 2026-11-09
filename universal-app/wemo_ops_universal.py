@@ -44,7 +44,11 @@ except Exception as e:
 
 # --- CONFIGURATION ---
 APP_NAME = "Wemo Central Ops"
-VERSION = "v5.3.1"
+VERSION = "v5.3.2"
+FORK_AUTHOR_URL = "https://github.com/fjimenez77"
+FORK_REPO_URL = "https://github.com/fjimenez77/wemo-central-ops"
+APACHE_LICENSE_URL = "https://www.apache.org/licenses/LICENSE-2.0"
+UPSTREAM_REPO_URL = "https://github.com/qrussell/wemo-ops-center"
 SERVER_PORT = 5050
 HOOBS_PORT = 8581
 SERVER_URL = f"http://localhost:{SERVER_PORT}"
@@ -393,6 +397,9 @@ class WemoOpsApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} {VERSION}")
+        self.about_window = None
+        if sys.platform == "darwin":
+            self.createcommand("tkAboutDialog", self.show_about)
         self.geometry("1100x800")
         
         self.set_icon(self)
@@ -2218,6 +2225,34 @@ class WemoOpsApp(ctk.CTk):
             except Exception as e: self.after(0, lambda: messagebox.showerror("Failure", str(e)))
         threading.Thread(target=task, daemon=True).start()
 
+    def show_about(self):
+        if self.about_window is not None and self.about_window.winfo_exists():
+            self.about_window.lift()
+            self.about_window.focus_force()
+            return
+
+        window = ctk.CTkToplevel(self)
+        self.about_window = window
+        window.title(f"About {APP_NAME}")
+        window.transient(self)
+        window.resizable(False, False)
+        if hasattr(self, "brand_icon"):
+            ctk.CTkLabel(window, text="", image=self.brand_icon).pack(pady=(18, 4))
+        ctk.CTkLabel(window, text=APP_NAME, font=FONT_H1).pack(padx=24, pady=(12, 0))
+        ctk.CTkLabel(window, text=f"Version {VERSION.removeprefix('v')}").pack(pady=(0, 12))
+        ctk.CTkLabel(window, text="Fork developed and maintained by fjimenez77.").pack(padx=24)
+        ctk.CTkLabel(window, text="Original fork contributions are licensed under Apache 2.0.").pack(padx=24)
+        ctk.CTkLabel(window, text="Based on Wemo Ops Center by Quentin Russell and contributors.").pack(padx=24, pady=(0, 10))
+        for label, url in (
+            ("GitHub · fjimenez77", FORK_AUTHOR_URL),
+            ("Wemo Central Ops repository (private)", FORK_REPO_URL),
+            ("Apache License 2.0", APACHE_LICENSE_URL),
+            ("Original Wemo Ops Center repository", UPSTREAM_REPO_URL),
+        ):
+            ctk.CTkButton(window, text=label, width=260, command=lambda url=url: webbrowser.open(url)).pack(pady=3)
+        window.bind("<Escape>", lambda _: window.destroy())
+        ctk.CTkButton(window, text="Close", command=window.destroy).pack(pady=(10, 16))
+
     def create_settings_ui(self):
         f = ctk.CTkFrame(self.content, fg_color="transparent"); self.frames["settings"] = f
         ctk.CTkLabel(f, text="Application Settings", font=FONT_H1, text_color=COLOR_TEXT).pack(pady=(0, 20), anchor="w")
@@ -2231,6 +2266,8 @@ class WemoOpsApp(ctk.CTk):
         r2 = ctk.CTkFrame(c, fg_color="transparent"); r2.pack(fill="x", padx=20, pady=10)
         ctk.CTkLabel(r2, text="UI Scaling:", font=FONT_BODY, text_color=COLOR_TEXT).pack(side="left")
         ctk.CTkComboBox(r2, values=["80%", "90%", "100%", "110%", "120%", "150%"], command=self.change_scaling, variable=ctk.StringVar(value=self.settings.get("scale", "100%")), width=150).pack(side="right")
+
+        ctk.CTkButton(f, text=f"About {APP_NAME}", command=self.show_about).pack(pady=12)
 
     def change_theme(self, m): ctk.set_appearance_mode(m); self.settings["theme"]=m; self.save_json(SETTINGS_FILE, self.settings)
     def change_scaling(self, s): self.set_ui_scale(s); self.settings["scale"]=s; self.save_json(SETTINGS_FILE, self.settings)

@@ -5,7 +5,7 @@
 # Wemo Central Ops
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-5.3.1-success.svg)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-5.3.2-success.svg)](ROADMAP.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Apple%20Silicon-lightgrey)](#requirements)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/macos/)
 [![Fork of](https://img.shields.io/badge/fork_of-wemo--ops--center-555.svg)](https://github.com/qrussell/wemo-ops-center)
@@ -94,7 +94,7 @@ Both are fixed here, along with the macOS packaging, the mixed-encoding
 
 ## Evolution of this tool
 
-| | Wemo Ops Center (upstream `58f4915`) | Wemo Central Ops (`5.3.1`) |
+| | Wemo Ops Center (upstream `58f4915`) | Wemo Central Ops (`5.3.2`) |
 |---|---|---|
 | Launches on Apple Silicon | ❌ reports "damaged" | ✅ signed and verified in the build |
 | Dashboard fill time | 2:50 on M1 | ~5s |
@@ -135,7 +135,7 @@ Both are fixed here, along with the macOS packaging, the mixed-encoding
 bash universal-app/build_mac.sh --python /opt/homebrew/bin/python3.14
 ```
 
-Output: `universal-app/dist/WemoCentralOps_5.3.1_arm64.dmg`
+Output: `universal-app/dist/WemoCentralOps_5.3.2_arm64.dmg`
 
 ### Run schedules after closing the app
 
@@ -276,7 +276,7 @@ Verify a build by hand:
 ```bash
 codesign --verify --deep --strict universal-app/dist/"Wemo Central Ops.app"
 lipo -archs universal-app/dist/"Wemo Central Ops.app"/Contents/MacOS/*
-hdiutil verify universal-app/dist/WemoCentralOps_5.3.1_arm64.dmg
+hdiutil verify universal-app/dist/WemoCentralOps_5.3.2_arm64.dmg
 ```
 
 ---
