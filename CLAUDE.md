@@ -6,10 +6,15 @@ and open issues. Check `git status --short` and `git log -5 --oneline` at the
 start of a session. The local handoff branch is `codex/wemo-central-ops`,
 based on the original macOS fix commit `624306a`.
 
-The user plans to create a separate GitHub repository for this fork.
-The existing `origin` points to Quentin Russell's upstream repository.
-Once the user provides the destination, add it as a separate remote and
-push the handoff branch there. Keep the original upstream attribution.
+The private fork is `fjimenez77/wemo-central-ops`, configured as
+`central-ops`. Push to that remote when authorized. The `origin` remote
+points to Quentin Russell's upstream repository and should stay untouched.
+
+Use `fjimenez77` as the author and committer name for new fork commits.
+Use the configured email associated with that GitHub account. Do not add
+Claude or AI attribution, generated-by lines, or AI co-author trailers to
+commits, push notes, pull requests, or releases. Preserve existing upstream
+credits and commit history.
 Read [LICENSING.md](LICENSING.md) before making the repository or DMG public.
 The DMG is ignored by Git and can be attached to the fork's release separately.
 
