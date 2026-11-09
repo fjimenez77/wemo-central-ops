@@ -122,8 +122,9 @@ Both are fixed here, along with the macOS packaging, the mixed-encoding
 
 ### Install the DMG
 
-1. Open the Apple Silicon DMG and drag **Wemo Central Ops.app** onto
-   **Applications**.
+1. Download the latest Apple Silicon DMG from the
+   [Releases page](https://github.com/fjimenez77/wemo-central-ops/releases/latest),
+   open it, and drag **Wemo Central Ops.app** onto **Applications**.
 2. First launch: right-click the app → **Open** → **Open** again. The build is
    signed but not notarized, so Gatekeeper asks once. See
    [Troubleshooting](#troubleshooting).

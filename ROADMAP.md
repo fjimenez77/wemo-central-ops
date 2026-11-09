@@ -33,7 +33,11 @@ See [CLAUDE.md](CLAUDE.md) for the project entry points and handoff.
 | Hardware: discovery + rule reads | Confirmed on 6 live Wemos on a real LAN |
 | Hardware: schedule firing, rule writes, VPN discovery | Still untested |
 | SSDP 10s-per-stale-host stall | Found, not fixed (see below) |
-| Delivery decision (PR vs own fork) | Open |
+| Delivery decision | Settled: own public fork, not an upstream PR |
+| Repository | Public at github.com/fjimenez77/wemo-central-ops |
+| Release | v5.3.2 published with the arm64 DMG attached and checksummed |
+| Third-party notices | Generated for 25 bundled packages; ships in the DMG |
+| Inherited CI workflows | Removed; neither could run in this fork |
 
 ---
 
@@ -195,13 +199,15 @@ contains.
 - Confirm Gatekeeper now says "unidentified developer" (recoverable) rather
   than "damaged" (dead end).
 
-### 3. Prepare publication
-- Publish Wemo Central Ops in a separate repository when the release
-  requirements in [LICENSING.md](LICENSING.md) are satisfied.
-- Ask the upstream maintainer to confirm MIT scope for the desktop app,
-  service, and assets, and provide the copyright notice before publishing a
-  modified DMG. The root README has an MIT badge and the only license file
-  found was in `mcp/`.
+### 3. Publication — done, with one item still open
+- Published at https://github.com/fjimenez77/wemo-central-ops on 2026-11-09,
+  with release v5.3.2 carrying the Apple Silicon DMG.
+- `THIRD-PARTY-NOTICES.md` covers the 25 bundled dependencies and ships inside
+  the DMG alongside LICENSE, NOTICE and LICENSING.md.
+- **Still open:** upstream has no root LICENSE file, only an MIT badge in the
+  README and an MIT licence under `mcp/`. The position taken is recorded in
+  LICENSING.md rather than resolved. Asking Quentin Russell to add a root
+  LICENSE would close it permanently, for this fork and any other.
 
 ### 4. SSDP phase still pays pywemo's 10s timeout
 Found while smoke-testing the built app. `pywemo.discover_devices()` is the

@@ -6,17 +6,20 @@ and open issues. Check `git status --short` and `git log -5 --oneline` at the
 start of a session. The local handoff branch is `codex/wemo-central-ops`,
 based on the original macOS fix commit `238a1f2`.
 
-The private fork is `fjimenez77/wemo-central-ops`, configured as
-`central-ops`. Push to that remote when authorized. The `origin` remote
-points to Quentin Russell's upstream repository and should stay untouched.
+The fork is `fjimenez77/wemo-central-ops`, configured as `central-ops`. It is
+public as of 2026-11-09 and carries the v5.3.2 release. Push to that remote
+when authorized. The `origin` remote points to Quentin Russell's upstream
+repository and should stay untouched.
 
 Use `fjimenez77` as the author and committer name for new fork commits.
 Use the configured email associated with that GitHub account. Do not add
 Claude or AI attribution, generated-by lines, or AI co-author trailers to
 commits, push notes, pull requests, or releases. Preserve existing upstream
 credits and commit history.
-Read [LICENSING.md](LICENSING.md) before making the repository or DMG public.
-The DMG is ignored by Git and can be attached to the fork's release separately.
+[LICENSING.md](LICENSING.md) records the licence scope; the repository and the
+v5.3.2 DMG were published on that basis, with the upstream root-licence gap
+documented rather than resolved. The DMG is ignored by Git and is attached to
+the GitHub release separately.
 
 ## Entry points
 
@@ -71,4 +74,6 @@ Automation UI and scheduler smoke tests passed using simulated devices.
 
 For hardware verification, test VPN discovery, a desktop schedule, a service
 schedule with the desktop closed, and the rules read on a supported Wemo.
-Confirm MIT coverage with the upstream maintainer before a public DMG release.
+Asking the upstream maintainer to add a root LICENSE file remains open. It is
+a follow-up, not a precondition: the repository and DMG are already public,
+and LICENSING.md states the position taken.
