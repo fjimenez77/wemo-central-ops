@@ -386,6 +386,7 @@ assets/                     logo and baseline screenshots
 mac/ windows/ linux/ universal/   earlier per-platform trees, not built
 ROADMAP.md                  dated status, rationale, open issues
 LICENSING.md                licence scope for fork vs upstream code
+THIRD-PARTY-NOTICES.md      licences of the dependencies bundled in the DMG
 ```
 
 ---
@@ -439,6 +440,13 @@ replace upstream terms or grant rights to upstream code and assets.
 **Confirm the upstream licence scope and applicable copyright notices before
 redistributing a source fork or a binary.** Read [`LICENSING.md`](LICENSING.md)
 first.
+
+The DMG embeds a Python runtime and 25 third-party libraries, each under its
+own terms. They are listed with their versions and full licence texts in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md), which also ships inside the
+DMG. Worth knowing: PyInstaller is GPLv2, but only its bootloader is embedded
+in a frozen app and that carries an explicit exception, so building with it
+does not make this application GPL.
 
 Credit where it is due: Quentin Russell and the upstream contributors built the
 tool this fork stands on, and `pywemo` does the protocol work.

@@ -269,7 +269,7 @@ mkdir -p "$STAGING/Service_Binary"
 cp -R "dist/$APP_NAME.app" "$STAGING/"
 cp dist/wemo_service "$STAGING/Service_Binary/"
 ln -s /Applications "$STAGING/Applications"
-cp ../LICENSE ../NOTICE ../LICENSING.md "$STAGING/"
+cp ../LICENSE ../NOTICE ../LICENSING.md ../THIRD-PARTY-NOTICES.md "$STAGING/"
 
 cat > "$STAGING/READ_ME_FIRST.txt" <<TXT
 Wemo Central Ops $VERSION ($TARGET_ARCH)
