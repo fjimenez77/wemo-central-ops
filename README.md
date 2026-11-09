@@ -31,6 +31,7 @@ by Quentin Russell and its contributors, based on upstream commit `58f4915`.
 - [Screenshots](#screenshots)
 - [Features at a glance](#features-at-a-glance)
 - [Why this fork exists (benefits)](#why-this-fork-exists-benefits)
+- [Related projects](#related-projects)
 - [Requirements](#requirements)
 - [Build guide](#build-guide)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -232,6 +233,40 @@ setup mode; or a full factory wipe.
 - **Rules live where they belong.** On-device rules keep running even if this
   app is never opened again.
 - **Nothing leaves your LAN.** All discovery and control is local.
+
+---
+
+## Related projects
+
+Other people solving the same problem — Belkin's cloud went away, the hardware
+did not. Worth knowing about if this project is not the shape you need.
+
+> **No affiliation.** Neither project is connected to, endorsed by, or
+> maintained by Wemo Central Ops, and this project is not connected to or
+> endorsed by them. Listed because they are useful, nothing more. They set
+> their own terms, support and roadmap — take any issue to them, not here.
+
+### SwitchPilot for Wemo — iPhone and Apple Watch
+
+[Free on the App Store](https://apps.apple.com/us/app/switchpilot-for-wemo/id6800065513).
+Local control from a phone, with the same on-device-rules philosophy as this
+project: schedules, auto-off timers, motion rules, long-press automations and
+scheduled restarts that run on the Wemo itself, with the app closed. Also
+covers Kasa devices and Wemo Insight energy tracking, and needs no account.
+Widgets and Siri included.
+
+This project is a macOS desktop app; SwitchPilot is iOS and watchOS. They sit
+on different screens rather than competing.
+
+### wemo-mcp-server — Wemo through an AI assistant
+
+[`apiarya/wemo-mcp-server`](https://github.com/apiarya/wemo-mcp-server) ·
+MIT · `pip install wemo-mcp-server`
+
+An MCP server for controlling Wemo devices in natural language from any MCP
+host. It began as the `mcp/` directory of the upstream Wemo Ops Center and was
+split out into its own repository; the `mcp/` tree still present here is that
+pre-split baseline, kept for history and not built.
 
 ---
 
