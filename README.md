@@ -147,9 +147,62 @@ agent on port **5050**. Then pick that service as the runner for a schedule.
 
 ## Screenshots
 
-Captures of the current Wemo Central Ops UI are pending. The images under
-[`assets/`](assets) show the upstream Wemo Ops Center baseline this fork was
-built from, not the current dashboard, Rules Library or schedule management.
+> Device MAC addresses, serial numbers and the solar latitude are redacted.
+> Private-range IPs are left visible.
+
+### Dashboard — every Wemo on one screen
+
+Power toggle, per-device **Rules**, rename, and HomeKit code retrieval. Devices
+that missed the last scan stay listed with their last known state and last-seen
+time instead of disappearing — *extra Wemo - 341D* below is one of those.
+
+![Dashboard](assets/screenshots/01-dashboard.png)
+
+### Deep scan — the part that used to take 2:50
+
+**Probing 254 IPs** across a /24 while the cached devices stay on screen and
+re-verify in the background. The probe phase of this sweep measures 2.9s,
+against 12.0s before the fix.
+
+![Deep scan in progress](assets/screenshots/02-deep-scan.png)
+
+### Rules Library — what controls what
+
+Rules read from the devices themselves, grouped by matching copy. Each card
+separates what a rule **Controls** from where it was found, and offers **Copy
+to Wemo Central Ops** to turn a native rule into a managed schedule.
+
+![Rules Library](assets/screenshots/03-rules-library.png)
+
+### Managed schedules — multi-device, with a choice of runner
+
+Fixed-time or solar-relative triggers across any set of devices. **Runner**
+selects the desktop app or the background service, so schedules keep firing
+after the app is closed. Export and Restore handle backups.
+
+![Managed schedules](assets/screenshots/04-schedules.png)
+
+### Stored on device — edit the rules on the Wemo itself
+
+Read, create, edit and delete the rules held in the device's own database,
+including auto-off countdowns. These keep running whether or not this app is
+ever opened again.
+
+![Stored on device](assets/screenshots/05-stored-on-device.png)
+
+### Provisioner — set up a factory-fresh Wemo without the vendor app
+
+Scans for a device broadcasting its `Wemo.*` setup SSID, then writes your
+Wi-Fi credentials to it directly.
+
+![Provisioner](assets/screenshots/06-provisioner.png)
+
+### Maintenance — reset without the cloud
+
+Three scopes: clear name, icon and rules; clear Wi-Fi credentials and return to
+setup mode; or a full factory wipe.
+
+![Maintenance tools](assets/screenshots/07-maintenance.png)
 
 ---
 
@@ -306,10 +359,12 @@ LICENSING.md                licence scope for fork vs upstream code
 
 - **Scope.** This fork targets macOS. The other top-level platform folders are
   upstream's earlier implementations and are not part of the build.
-- **Hardware verification is incomplete.** Automation and scheduling passed
-  smoke tests with simulated devices. VPN discovery, a desktop schedule, a
-  service schedule with the app closed, and on-device rule reads still need
-  testing against real hardware.
+- **Hardware verification is partial.** Discovery and reading rules off real
+  Wemos are confirmed on hardware — the screenshots above are six live devices
+  on a real LAN. Automation and scheduling otherwise passed smoke tests with
+  simulated devices. Still untested on hardware: VPN-active discovery, a
+  desktop schedule firing, a service schedule firing with the app closed, and
+  writing a rule back to a device.
 - **Not notarized.** Ad-hoc signing is as far as this goes without a paid
   Apple Developer ID.
 - **Bundled dependencies carry their own terms.** Review the dependency

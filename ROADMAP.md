@@ -28,6 +28,10 @@ See [CLAUDE.md](CLAUDE.md) for the project entry points and handoff.
 | Automation smoke tests | Passed on macOS with simulated devices. Covered execution, pause, duplicate prevention, missing-device results, service API, and desktop UI flows. |
 | Latest arm64 package | `universal-app/dist/WemoCentralOps_5.3.1_arm64.dmg` (79 MB). Bundle and service signatures, executable architecture, and DMG checksum verified. |
 | README version drift | Fixed, macOS Gatekeeper section added |
+| README structure | Rebuilt to the house layout; logo resized 1254px -> 256px |
+| Screenshots | 7 captured from the live app, MAC/SN and solar latitude redacted |
+| Hardware: discovery + rule reads | Confirmed on 6 live Wemos on a real LAN |
+| Hardware: schedule firing, rule writes, VPN discovery | Still untested |
 | SSDP 10s-per-stale-host stall | Found, not fixed (see below) |
 | Delivery decision (PR vs own fork) | Open |
 
